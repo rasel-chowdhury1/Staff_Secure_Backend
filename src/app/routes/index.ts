@@ -2,6 +2,7 @@ import { Router } from "express";
 import { userRoutes } from "../middleware/user/user.route";
 import { authRoutes } from "../middleware/auth/auth.route";
 import { otpRoutes } from "../middleware/otp/otp.routes";
+import { settingsRoutes } from "../middleware/setting/setting.route";
 
 
 const router = Router();
@@ -18,6 +19,10 @@ const moduleRoutes = [
   {
     path: "/otp",
     route: otpRoutes
+  },
+  {
+    path: "/settings",
+    route: settingsRoutes
   },
 ];
 
