@@ -3,6 +3,7 @@ import { userRoutes } from "../middleware/user/user.route";
 import { authRoutes } from "../middleware/auth/auth.route";
 import { otpRoutes } from "../middleware/otp/otp.routes";
 import { settingsRoutes } from "../middleware/setting/setting.route";
+import { JobRoutes } from "../middleware/job/job.route";
 
 
 const router = Router();
@@ -23,6 +24,10 @@ const moduleRoutes = [
   {
     path: "/settings",
     route: settingsRoutes
+  },
+  {
+    path: "/job",
+    route: JobRoutes
   },
 ];
 
