@@ -5,6 +5,7 @@ import { otpRoutes } from "../middleware/otp/otp.routes";
 import { settingsRoutes } from "../middleware/setting/setting.route";
 import { JobRoutes } from "../middleware/job/job.route";
 import { applicationRoutes } from "../middleware/application/application.routes";
+import { mySubscriptionRoutes } from "../middleware/mySubscription/mySubscription.routes";
 
 
 const router = Router();
@@ -33,6 +34,10 @@ const moduleRoutes = [
   {
     path: "/application",
     route: applicationRoutes
+  },
+  {
+    path: "/subscription",
+    route: mySubscriptionRoutes
   },
 ];
 
