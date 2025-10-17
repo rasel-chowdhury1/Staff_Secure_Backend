@@ -6,6 +6,7 @@ import { settingsRoutes } from "../middleware/setting/setting.route";
 import { JobRoutes } from "../middleware/job/job.route";
 import { applicationRoutes } from "../middleware/application/application.routes";
 import { mySubscriptionRoutes } from "../middleware/mySubscription/mySubscription.routes";
+import { paymentRoutes } from "../middleware/payment/payment.route";
 
 
 const router = Router();
@@ -38,6 +39,10 @@ const moduleRoutes = [
   {
     path: "/subscription",
     route: mySubscriptionRoutes
+  },
+  {
+    path: "/payment",
+    route: paymentRoutes
   },
 ];
 
