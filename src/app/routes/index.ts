@@ -9,6 +9,9 @@ import { mySubscriptionRoutes } from "../middleware/mySubscription/mySubscriptio
 import { paymentRoutes } from "../middleware/payment/payment.route";
 import { notificationRoutes } from "../middleware/notifications/notifications.route";
 import { ContactRoutes } from "../middleware/contactUs/contactUs.route";
+import { ChatRoutes } from "../middleware/chat/chat.route";
+import { messageRoutes } from "../middleware/message/message.route";
+import { overviewRoutes } from "../middleware/overview/overview.route";
 
 
 const router = Router();
@@ -41,6 +44,18 @@ const moduleRoutes = [
   {
     path: "/application",
     route: applicationRoutes
+  },
+    {
+    path: "/chat",
+    route: ChatRoutes
+  },
+  {
+    path: "/message",
+    route: messageRoutes
+  },
+  {
+    path: "/overview",
+    route: overviewRoutes
   },
   {
     path: "/subscription",
