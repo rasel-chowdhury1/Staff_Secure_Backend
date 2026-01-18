@@ -9,7 +9,7 @@ This backend handles authentication, user management, payments, real-time commun
 
 **Project Name:** Staff Secure HR Management Backend  
 **Environment:** Development / Production  
-**Architecture:** Modular MVC  
+**Architecture:** Modular Architecture
 **Language:** TypeScript  
 **API Style:** REST  
 **Authentication:** JWT (Access & Refresh Tokens)
