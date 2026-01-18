@@ -71,6 +71,7 @@ src/
 ⚙️ Environment Variables
 Before running the project, make sure to create a .env file in the root directory by copying .env.example:
 
+```bash
 cp .env.example .env
 Update the .env file with the required configuration.
 
@@ -113,32 +114,42 @@ BCRYPT_SALT_ROUNDS=10
 MONITOR_USERNAME=Admin
 MONITOR_PASSWORD=12345
 
-
+```
 
 ## 📦 Installation Guide
 
 Follow the steps below to set up the project:
 
 ### 1️⃣ Clone the Repository
-
-git clone <https://github.com/rasel-chowdhury1/Staff_Secure_Backend>
+```bash
+git clone https://github.com/rasel-chowdhury1/Staff_Secure_Backend
 cd Staff_Secure_HR_Management_Backend
+
 2️⃣ Install Dependencies
 npm install
+
 3️⃣ Build the Project
 npm run build
+
 4️⃣ Run in Development Mode
 npm run dev
+
 5️⃣ Run in Production Mode
 npm start
+
+```
+
 🌐 Server Information
 The project exposes the following services:
 
 Service	Port
 API Server	9010
 Socket Server	9020
+
 Base API URL
 http://10.10.10.32:9010/api/v1
+
+
 📮 API Documentation (Postman)
 All endpoints are documented using Postman.
 
