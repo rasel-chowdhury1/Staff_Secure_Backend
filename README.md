@@ -65,6 +65,9 @@ src/
 ├── .env.example
 ├── package.json
 ├── README.md
+
+
+
 ⚙️ Environment Variables
 Before running the project, make sure to create a .env file in the root directory by copying .env.example:
 
@@ -109,10 +112,13 @@ BCRYPT_SALT_ROUNDS=10
 # Server Monitoring Credentials
 MONITOR_USERNAME=Admin
 MONITOR_PASSWORD=12345
-📦 Installation Guide
+
+## 📦 Installation Guide
+
 Follow the steps below to set up the project:
 
-1️⃣ Clone the Repository
+### 1️⃣ Clone the Repository
+```bash
 git clone <your-repository-url>
 cd Staff_Secure_HR_Management_Backend
 2️⃣ Install Dependencies
@@ -131,20 +137,20 @@ API Server	9010
 Socket Server	9020
 Base API URL
 http://10.10.10.32:9010/api/v1
-
 📮 API Documentation (Postman)
 All endpoints are documented using Postman.
 
 🔗 Postman Documentation
+https://documenter.getpostman.com/view/40841938/2sBXVifpTw
 
 🔐 Authentication & Authorization
 JWT Access Token: Used for authenticating users and securing endpoints.
 
-JWT Refresh Token: Used to refresh access tokens.
+JWT Refresh Token: Used to refresh expired access tokens.
 
-Role-based Authorization: Restrict access based on user roles.
+Role-based Authorization: Restricts access based on user roles.
 
-Password Hashing: Using bcrypt for securing passwords.
+Password Hashing: Uses bcrypt to securely hash passwords.
 
 OTP Verification: One-time password verification via email.
 
@@ -155,43 +161,43 @@ Secure server-side payment processing.
 
 Subscription and billing support.
 
-Stripe integration for handling payments securely.
+Stripe APIs are used to handle payments securely.
 
 🔄 Real-Time Communication
 Powered by Socket.IO, the backend supports real-time communication and notifications.
 
 Separate Socket Server handles real-time data flow.
 
-Used for live updates, notifications, and communication between clients and servers.
+Used for live updates, notifications, and client–server communication.
 
 🧪 Error Handling
-Centralized global error handler for handling all errors in the application.
+Centralized global error handler for managing application errors.
 
-Custom error responses to provide meaningful feedback to clients.
+Custom error responses for meaningful client feedback.
 
 Validation error handling for incoming requests.
 
-404 Not Found handling for missing routes.
+404 Not Found handling for undefined routes.
 
 🛠 Available Scripts
 Command	Description
 npm run dev	Start development server
 npm run build	Compile TypeScript
 npm start	Start production server
-npm run lint	Run ESLint to check for errors
+npm run lint	Run ESLint
 npm run lint:fix	Fix lint issues
 🔒 Security Features
-Environment-based Configuration: Environment variables are used to store sensitive information.
+Environment-based Configuration: Sensitive data stored using environment variables.
 
-JWT Authentication: Secures API endpoints by ensuring only authorized users can access protected routes.
+JWT Authentication: Protects API endpoints.
 
-Password Hashing: All passwords are hashed using bcrypt before storage.
+Password Hashing: All passwords are hashed before storage.
 
-Request Validation: Ensures that incoming requests contain valid data.
+Request Validation: Ensures incoming data is valid.
 
-Centralized Error Handling: Errors are caught and handled in a centralized way, allowing for a better user experience.
+Centralized Error Handling: Improves stability and user experience.
 
-Secure Payment Processing: Stripe's secure API is used to handle payment-related transactions.
+Secure Payment Processing: Stripe ensures secure payment transactions.
 
 📄 License
 This project is intended for internal and commercial use.
