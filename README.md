@@ -139,7 +139,7 @@ npm start
 
 ```
 
-🌐 Server Information
+## 🌐 Server Information
 The project exposes the following services:
 
 Service	Port
@@ -150,13 +150,13 @@ Base API URL
 http://10.10.10.32:9010/api/v1
 
 
-📮 API Documentation (Postman)
+### 📮 API Documentation (Postman)
 All endpoints are documented using Postman.
 
 🔗 Postman Documentation
 https://documenter.getpostman.com/view/40841938/2sBXVifpTw
 
-🔐 Authentication & Authorization
+### 🔐 Authentication & Authorization
 JWT Access Token: Used for authenticating users and securing endpoints.
 
 JWT Refresh Token: Used to refresh expired access tokens.
@@ -183,7 +183,7 @@ Separate Socket Server handles real-time data flow.
 
 Used for live updates, notifications, and client–server communication.
 
-🧪 Error Handling
+### 🧪 Error Handling
 Centralized global error handler for managing application errors.
 
 Custom error responses for meaningful client feedback.
@@ -192,7 +192,7 @@ Validation error handling for incoming requests.
 
 404 Not Found handling for undefined routes.
 
-🛠 Available Scripts
+### 🛠 Available Scripts
 Command	Description
 npm run dev	Start development server
 npm run build	Compile TypeScript
@@ -212,9 +212,9 @@ Centralized Error Handling: Improves stability and user experience.
 
 Secure Payment Processing: Stripe ensures secure payment transactions.
 
-📄 License
+### 📄 License
 This project is intended for internal and commercial use.
 
-👨‍💻 Author
+### 👨‍💻 Author
 Rasel Dev
 Backend Engineer – Node.js | TypeScript | MongoDB
