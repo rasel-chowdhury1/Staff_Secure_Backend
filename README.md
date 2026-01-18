@@ -31,6 +31,22 @@ This backend handles authentication, user management, payments, real-time commun
 
 ---
 
+
+## 🗂️ Entity Relationship Diagram (ERD)
+
+The database structure and relationships for this project are documented using **draw.io**.
+
+📌 **ERD Design Link:**  
+🔗 https://drive.google.com/file/d/15xUQWTL0K7iWYWxtWQ65oknEmOAXK61f/view  
+
+The ERD provides a clear overview of:
+- User relationships
+- Authentication & authorization entities
+- Payment and subscription models
+- System configuration and monitoring entities
+
+This diagram helps developers understand the database schema and relationships quickly.
+
 ## 📁 Folder Structure
 
 The project folder structure follows the MVC pattern and is organized as shown below:
@@ -147,7 +163,7 @@ API Server	9010
 Socket Server	9020
 
 Base API URL
-http://10.10.10.32:9010/api/v1
+http://localhost/api/v1
 
 
 ### 📮 API Documentation (Postman)
