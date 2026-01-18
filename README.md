@@ -35,7 +35,7 @@ This backend handles authentication, user management, payments, real-time commun
 
 The project folder structure follows the MVC pattern and is organized as shown below:
 
-```bash
+
 src/
 │
 ├── app/
@@ -112,6 +112,8 @@ BCRYPT_SALT_ROUNDS=10
 # Server Monitoring Credentials
 MONITOR_USERNAME=Admin
 MONITOR_PASSWORD=12345
+
+
 
 ## 📦 Installation Guide
 
