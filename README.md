@@ -120,8 +120,8 @@ MONITOR_PASSWORD=12345
 Follow the steps below to set up the project:
 
 ### 1️⃣ Clone the Repository
-```bash
-git clone <your-repository-url>
+
+git clone <https://github.com/rasel-chowdhury1/Staff_Secure_Backend>
 cd Staff_Secure_HR_Management_Backend
 2️⃣ Install Dependencies
 npm install
