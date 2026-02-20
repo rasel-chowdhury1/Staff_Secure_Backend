@@ -15,8 +15,12 @@ import { logErrorHandler, logHttpRequests } from './app/utils/logger';
 import path from 'path';
 import fs from 'fs';
 import { limiter } from './app/utils/limiter';
+import { paymentController } from './app/modules/payment/payment.controller';
 
 const app: Application = express();
+
+
+app.use('/api/v1/payment/webhook', express.raw({ type: 'application/json' }), paymentController.stripeWebhook);
 
 
 /* ---------- Core middlewares ---------- */

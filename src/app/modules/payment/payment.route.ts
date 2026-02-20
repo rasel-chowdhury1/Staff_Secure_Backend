@@ -1,28 +1,50 @@
 // payment.routes.ts
-import express from 'express';
-import {
-  createSubscriptionController,
-  confirmSubscriptionController,
-  cancelPaymentController,
-  cancelAutoRenewalController,
-  resumeAutoRenewalController,
-  getSubscriptionStatusController,
-} from './payment.controller';
-import { handleStripeWebhook } from './payment.webhook';
-import auth from '../../middleware/auth';
-import { USER_ROLE } from '../user/user.constants';
+import { Router } from "express";
+import { paymentController } from "./payment.controller";
+import bodyParser from "body-parser";
+import auth from "../../middleware/auth";
+import { USER_ROLE } from "../user/user.constants";
 
-const router = express.Router();
+const router = Router();
 
-router.post('/create-session', auth(USER_ROLE.EMPLOYER), createSubscriptionController);
-router.get('/confirm-subscription', confirmSubscriptionController);
-router.get('/cancel', cancelPaymentController);
-router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
-router.post('/cancel-auto-renewal', auth(USER_ROLE.EMPLOYER), cancelAutoRenewalController);
-router.post('/resume-auto-renewal', auth(USER_ROLE.EMPLOYER), resumeAutoRenewalController);
-router.get('/subscription-status', auth(USER_ROLE.EMPLOYER), getSubscriptionStatusController);
+// Create checkout session
+router.post("/create-checkout-session", auth(USER_ROLE.EMPLOYER), paymentController.createCheckoutSession);
+
+// Cancel subscription
+router.post("/cancel-subscription", paymentController.cancelSubscription);
+
+// Stripe webhook (use raw body)
+router.post("/webhook", bodyParser.raw({ type: "application/json" }), paymentController.stripeWebhook);
 
 export const paymentRoutes = router;
+
+
+
+// // payment.routes.ts
+// import express from 'express';
+// import {
+//   createSubscriptionController,
+//   confirmSubscriptionController,
+//   cancelPaymentController,
+//   cancelAutoRenewalController,
+//   resumeAutoRenewalController,
+//   getSubscriptionStatusController,
+// } from './payment.controller';
+// import { handleStripeWebhook } from './payment.webhook';
+// import auth from '../../middleware/auth';
+// import { USER_ROLE } from '../user/user.constants';
+
+// const router = express.Router();
+
+// router.post('/create-session', auth(USER_ROLE.EMPLOYER), createSubscriptionController);
+// router.get('/confirm-subscription', confirmSubscriptionController);
+// router.get('/cancel', cancelPaymentController);
+// router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+// router.post('/cancel-auto-renewal', auth(USER_ROLE.EMPLOYER), cancelAutoRenewalController);
+// router.post('/resume-auto-renewal', auth(USER_ROLE.EMPLOYER), resumeAutoRenewalController);
+// router.get('/subscription-status', auth(USER_ROLE.EMPLOYER), getSubscriptionStatusController);
+
+// export const paymentRoutes = router;
 
 
 // import { Router } from 'express';

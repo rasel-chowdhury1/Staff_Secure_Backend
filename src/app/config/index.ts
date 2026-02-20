@@ -11,7 +11,7 @@ const aws = {
 
 const stripe = {
   stripe_api_key: process.env.STRIPE_API_KEY,
-  stripe_api_secret: process.env.STRIPE_API_SECRET,
+  stripe_api_secret: process.env.STRIPE_SECRET_KEY,
   stripe_webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
 };
 
