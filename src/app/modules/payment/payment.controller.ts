@@ -8,8 +8,8 @@ import { stripe } from "./payment.utils";
 const createCheckoutSession = async (req: Request, res: Response): Promise<void> => {
   try {
     const {userId} = req.user;
-    const {  subscriptionType, promotionCode } = req.body;
-    const url = await paymentService.createCheckoutSession(userId, subscriptionType, promotionCode);
+    const {  subscriptionType } = req.body;
+    const url = await paymentService.createCheckoutSession(userId, subscriptionType);
 
     sendResponse(res, {
       statusCode: httpStatus.OK,
