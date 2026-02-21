@@ -29,55 +29,40 @@ const createCheckoutSession = async (req: Request, res: Response): Promise<void>
 };
 
 const stripeWebhook = async (req: Request, res: Response): Promise<void> => {
+  const sig = req.headers['stripe-signature'];
 
-  // console.log("webhook called here =>>>>>>>>> ");
-  // const sig = req.headers["stripe-signature"]!;
-  // const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+  if (!sig) {
+    res.status(400).send("Missing Stripe signature");
+    return;
+  }
 
-  // console.log("sig =>>>>> ", sig);
-  // console.log("webhookSecret =>>>>> ", webhookSecret);
-  
-
-  // let event: Stripe.Event;
-  // try {
-  //   event = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-09-30.clover" })
-  //     .webhooks.constructEvent(req.body, sig, webhookSecret);
-
-
-  //   console.log("event =>>>>> ", event);
-  // } catch (err: any) {
-
-  //   console.log("Webhook error =>>>>> ", err)
-  //   res.status(400).send(`Webhook Error: ${err.message}`);
-  //   return;
-  // }
-
-  // try {
-  //   await paymentService.handleWebhook(event);
-  //   res.status(200).send("Received");
-  // } catch (err) {
-  //   console.error(err);
-  //   res.status(500).send("Webhook processing failed");
-  // }
-
+  let event: Stripe.Event;
 
   try {
-        
-        const sig = req.headers['stripe-signature']!
-        console.log('sig==>', sig);
-        const event = stripe.webhooks.constructEvent(
-            req.body,
-            sig,
-            process.env.STRIPE_WEBHOOK_SECRET!,
-        );
-        // console.log(event, "event=========>test")
-        const result = await paymentService.handleWebhook(event);
-        console.log(result, "result")
-        res.send();
-    } catch (err) {
-        console.log(err, "err")
-        res.status(400).send(`Webhook Error: ${(err as Error).message}`);
-    }
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+  } catch (err) {
+    console.error("Webhook signature verification failed.");
+    res.status(400).send("Webhook Error");
+    return;
+  }
+
+  console.log("Webhook received: == =before= ==", event.type);
+
+  // Immediately acknowledge
+  res.status(200).send();
+
+    console.log("Webhook received: === after ===", event.type);
+
+  // Process event safely
+  try {
+    await paymentService.handleWebhook(event);
+  } catch (err) {
+    console.error("Webhook processing error:", err);
+  }
 };
 
 const cancelSubscription = async (req: Request, res: Response): Promise<void> => {

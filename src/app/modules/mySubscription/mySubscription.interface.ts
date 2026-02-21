@@ -13,7 +13,11 @@ export type TMySubscription = {
   autoRenewal: boolean;
   stripeSubscriptionId?: string;
   yearEndDate: Date;
+  cancelDeadline: Date;
   renewalCount: number;
+  lastPaymentAmount: number;
+  promotionCode: string;
+  stripeHostedInvoiceUrl: string;
 };
 
 // export type TMySubscription = {

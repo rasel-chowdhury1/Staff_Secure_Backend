@@ -4,8 +4,25 @@ import { paymentController } from "./payment.controller";
 import bodyParser from "body-parser";
 import auth from "../../middleware/auth";
 import { USER_ROLE } from "../user/user.constants";
+import { stripe } from "./payment.utils";
 
 const router = Router();
+
+router.get("/coupon", async (req,res) => {
+    const subscription = await stripe.subscriptions.retrieve("sub_1T3BceBVLovAdhOVYDX54MwX", {
+  expand: ['discounts.coupon'] // expand coupon details
+});
+
+
+const promo = await stripe.promotionCodes.retrieve("promo_1T2N0ZBVLovAdhOV3GuCvUnh");
+console.log("User-entered promo code:", promo.code);
+
+
+console.log("get coupont by subscription =>>>>>>>>>>>>>>>>>>>>>>> ",subscription)
+
+
+ res.json({subscription});
+})
 
 // Create checkout session
 router.post("/create-checkout-session", auth(USER_ROLE.EMPLOYER), paymentController.createCheckoutSession);

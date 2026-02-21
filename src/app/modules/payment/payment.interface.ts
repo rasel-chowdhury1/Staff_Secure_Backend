@@ -23,6 +23,7 @@ export type TPayment = {
   discount: number;
   finalAmount: number;
   paymentId: string;
+  promotionCode?: string;
   paymentMethod: string;
   buyTime: Date;
   expireDate: Date;
@@ -31,6 +32,7 @@ export type TPayment = {
   subscriptionId?: Types.ObjectId | string;
   isRenewal: boolean;
   stripeInvoiceId?: string;
+  stripeHostedInvoiceUrl?: string;
 };
 
 

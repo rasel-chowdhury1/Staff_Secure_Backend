@@ -52,10 +52,26 @@ const mySubscriptionSchema = new Schema<TMySubscription>(
       type: Date,
       required: true,
     },
+    cancelDeadline: {
+      type: Date,
+      required: true, // 1 month before yearEndDate, used for cancel restriction
+    },
     renewalCount: {
       type: Number,
       default: 0,
     },
+    lastPaymentAmount: {
+      type: Number,
+      default: 0, // store last paid amount (useful if first 12 months have discount)
+    },
+    promotionCode: {
+      type: String,
+      default: null, // store applied promo code if any
+    },
+    stripeHostedInvoiceUrl: {
+      type: String,
+      required: false,
+    }
   },
   { timestamps: true }
 );

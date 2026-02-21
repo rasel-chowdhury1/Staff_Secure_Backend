@@ -34,6 +34,10 @@ const paymentSchema = new Schema<TPayment>(
       type: String,
       required: true,
     },
+    promotionCode: {
+      type: String,
+      default: null, // store applied Stripe coupon code
+    },
     paymentMethod: {
       type: String,
       enum: ['card', 'bank_transfer', 'wallet', 'other', ''],
@@ -69,6 +73,10 @@ const paymentSchema = new Schema<TPayment>(
       type: String,
       required: false,
     },
+    stripeHostedInvoiceUrl: {
+      type: String,
+      required: false,
+    }
   },
   { timestamps: true }
 );

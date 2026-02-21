@@ -4,187 +4,180 @@ import { MySubscription } from "../mySubscription/mySubscription.model";
 import { Payment } from "./payment.model";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-09-30.clover",
+  apiVersion: "2026-01-28.clover",
 });
 
-const stripePriceIds: Record<
-  "Bronze" | "Platinum" | "Diamond",
-  string
-> = {
+const stripePriceIds: Record<"Bronze" | "Platinum" | "Diamond", string> = {
   Bronze: process.env.STRIPE_BRONZE_PRICE_ID!,
   Platinum: process.env.STRIPE_PLATINUM_PRICE_ID!,
   Diamond: process.env.STRIPE_DIAMOND_PRICE_ID!,
 };
 
-export const createCheckoutSession = async (
+// ================= Create Checkout Session =================
+const createCheckoutSession = async (
   userId: string,
-  subscriptionType: "Bronze" | "Platinum" | "Diamond",
-  promotionCode?: string
+  subscriptionType: "Bronze" | "Platinum" | "Diamond"
 ): Promise<string> => {
-  // ================================
-  // 1️⃣ Find User
-  // ================================
   const user = await User.findById(userId);
-  if (!user) {
-    throw new Error("User not found");
-  }
+  if (!user) throw new Error("User not found");
 
-  // ================================
-  // 2️⃣ Prevent Multiple Active Subscriptions
-  // ================================
-  const activeSubscription = await MySubscription.findOne({
-    employerId: user._id,
-    status: "active",
-  });
+  // Prevent multiple active subscriptions
+  const activeSubscription = await MySubscription.findOne({ employerId: user._id, status: "active" });
+  if (activeSubscription) throw new Error("User already has an active subscription");
 
-  if (activeSubscription) {
-    throw new Error("User already has an active subscription");
-  }
-
-  // ================================
-  // 3️⃣ Create / Reuse Stripe Customer
-  // ================================
+  // Create or reuse Stripe customer
   let customerId = user.stipeCustomerId;
-
   if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      metadata: {
-        userId: user._id.toString(),
-      },
-    });
-
+    const customer = await stripe.customers.create({ email: user.email, metadata: { userId: user._id.toString() } });
     customerId = customer.id;
     user.stipeCustomerId = customerId;
     await user.save();
   }
 
-  // ================================
-  // 4️⃣ Validate Price
-  // ================================
   const priceId = stripePriceIds[subscriptionType];
-  if (!priceId) {
-    throw new Error("Invalid subscription type");
-  }
+  if (!priceId) throw new Error("Invalid subscription type");
 
-  // ================================
-  // 5️⃣ Create Checkout Session
-  // ================================
+  // Create checkout session
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
     payment_method_types: ["card"],
-
-    line_items: [
-      {
-        price: priceId,
-        quantity: 1,
-      },
-    ],
-
-    discounts: promotionCode
-      ? [{ promotion_code: promotionCode }]
-      : undefined,
-
-    success_url: `${process.env.FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+    allow_promotion_codes: true, // user can apply coupon
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${process.env.FRONTEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.FRONTEND_URL}/cancel`,
-
-    metadata: {
-      userId: user._id.toString(),
-      subscriptionType,
-    },
-
     subscription_data: {
-      metadata: {
-        userId: user._id.toString(),
-        subscriptionType,
-      },
+      metadata: { userId: user._id.toString(), subscriptionType },
+      // trial period can be added here if needed
     },
   });
 
-  if (!session.url) {
-    throw new Error("Failed to create Stripe checkout session");
-  }
-
+  if (!session.url) throw new Error("Failed to create Stripe checkout session");
   return session.url;
 };
 
 
 
 const handleWebhook = async (event: Stripe.Event) => {
-  console.log("Stripe Event:", event.type);
+  console.log("=== Stripe Event Received ===>", event.type);
 
   try {
-    // =========================================================
-    // 1️⃣ PAYMENT SUCCESS (First + Renewal)
-    // =========================================================
-    if (event.type === "invoice.payment_succeeded") {
+    /**
+     * ============================================================
+     * 1️⃣ HANDLE SUCCESSFUL INVOICE PAYMENT (Subscription Payment)
+     * ============================================================
+     */
+    if (event.type === "invoice.paid") {
       const invoice = event.data.object as Stripe.Invoice;
 
-      console.log("==== invoice.payment_succeeded =>>>>> ", invoice)
+      console.log("Processing invoice:", invoice.id);
 
-      // 🔹 Safely get subscription ID
+      // ------------------------------------------------------------
+      // STEP 1: Prevent duplicate webhook processing
+      // ------------------------------------------------------------
+      const existingPayment = await Payment.findOne({ paymentId: invoice.id });
+      if (existingPayment) {
+        console.log("Invoice already processed:", invoice.id);
+        return;
+      }
+
+      // ------------------------------------------------------------
+      // STEP 2: Extract subscription ID from invoice
+      // ------------------------------------------------------------
       const subscriptionId =
-        ((invoice as any).subscription as string) ||
-        (invoice.parent?.subscription_details?.subscription as string);
+        invoice.parent?.subscription_details?.subscription as string;
 
       if (!subscriptionId) {
-        console.log("No subscription ID found for invoice:", invoice.id);
+        console.log("No subscription linked to invoice:", invoice.id);
         return;
       }
 
-
-      // 🔥 Prevent duplicate webhook retry
-      const existingPayment = await Payment.findOne({
-        paymentId: invoice.id,
-      });
-
-      if (existingPayment) {
-        console.log("Duplicate webhook ignored");
-        return;
-      }
-
-      // Get Stripe Subscription
-      const stripeSub = await stripe.subscriptions.retrieve(
-        subscriptionId as string
+      // ------------------------------------------------------------
+      // STEP 3: Retrieve full subscription from Stripe
+      // Expand discounts to access coupon details
+      // ------------------------------------------------------------
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        subscriptionId,
+        { expand: ["discounts.coupon"] }
       );
 
-      console.log("==== stripeSub =>>>>> ", stripeSub)
+      if (!stripeSubscription) {
+        console.log("Stripe subscription not found:", subscriptionId);
+        return;
+      }
 
+      // ------------------------------------------------------------
+      // STEP 4: Extract Promotion Code (if applied)
+      // ------------------------------------------------------------
+      let promoCodeUsed: string | null = null;
+
+      if (stripeSubscription.discounts?.length) {
+        const discount = stripeSubscription.discounts[0];
+
+        // promotion_code contains the promo object ID (promo_xxx)
+        const promotionCodeId = (discount as any).promotion_code;
+
+        if (promotionCodeId) {
+          const promo = await stripe.promotionCodes.retrieve(promotionCodeId);
+          promoCodeUsed = promo.code; // actual user-entered code (e.g., SUMMER10)
+        }
+      }
+
+      console.log("Promotion code used:", promoCodeUsed);
+
+      // ------------------------------------------------------------
+      // STEP 5: Find user using Stripe customer ID
+      // ------------------------------------------------------------
       const user = await User.findOne({
-        stipeCustomerId: stripeSub.customer,
+        stipeCustomerId: stripeSubscription.customer,
       });
 
-      if (!user) return;
+      if (!user) {
+        console.log("User not found for Stripe customer:", stripeSubscription.customer);
+        return;
+      }
 
+      // ------------------------------------------------------------
+      // STEP 6: Extract invoice line & billing period
+      // ------------------------------------------------------------
       const line = invoice.lines.data[0];
-
       const periodStart = new Date(line.period.start * 1000);
       const periodEnd = new Date(line.period.end * 1000);
 
-      const discount =
-        invoice.total_discount_amounts?.length
-          ? invoice.total_discount_amounts[0].amount / 100
-          : 0;
+      // ------------------------------------------------------------
+      // STEP 7: Calculate payment amounts
+      // ------------------------------------------------------------
+      const discountAmount = invoice.total_discount_amounts?.length
+        ? invoice.total_discount_amounts[0].amount / 100
+        : 0;
 
       const finalAmount = invoice.amount_paid / 100;
 
-      console.log("subscriptionType items data =>>>>> ", stripeSub.items.data)
+      // ------------------------------------------------------------
+      // STEP 8: Determine subscription type
+      // ------------------------------------------------------------
       const subscriptionType =
-        stripeSub.items.data[0].price.nickname  || stripeSub.metadata.subscriptionType  as
+        (stripeSubscription.metadata.subscriptionType as
           | "Bronze"
           | "Platinum"
-          | "Diamond";
+          | "Diamond") ||
+        (line.metadata.subscriptionType as
+          | "Bronze"
+          | "Platinum"
+          | "Diamond") ||
+        "Bronze";
 
-      // =====================================================
-      // Create Payment
-      // =====================================================
+      /**
+       * ============================================================
+       * 2️⃣ CREATE PAYMENT RECORD
+       * ============================================================
+       */
       const paymentDoc = await Payment.create({
         employerId: user._id,
         subscriptionType,
         durationInMonths: 1,
-        amount: finalAmount + discount,
-        discount,
+        amount: finalAmount + discountAmount,
+        discount: discountAmount,
         finalAmount,
         paymentId: invoice.id,
         paymentMethod: "card",
@@ -193,28 +186,43 @@ const handleWebhook = async (event: Stripe.Event) => {
         status: "success",
         stripeInvoiceId: invoice.id,
         isRenewal: invoice.billing_reason === "subscription_cycle",
+        promotionCode: promoCodeUsed,
+        stripeHostedInvoiceUrl: invoice.hosted_invoice_url,
       });
 
-      // =====================================================
-      // Update or Create Subscription
-      // =====================================================
-      let mySub = await MySubscription.findOne({
-        stripeSubscriptionId: stripeSub.id,
+      /**
+       * ============================================================
+       * 3️⃣ CREATE OR UPDATE LOCAL SUBSCRIPTION
+       * ============================================================
+       */
+      let mySubscription = await MySubscription.findOne({
+        stripeSubscriptionId: stripeSubscription.id,
       });
 
-      if (mySub) {
-        // 🔁 Renewal
-        mySub.expireDate = periodEnd;
-        mySub.paymentId = paymentDoc._id;
-        mySub.status = "active";
-        mySub.renewalCount += 1;
-        await mySub.save();
+      if (mySubscription) {
+        // -------------------------
+        // 🔄 RENEWAL CASE
+        // -------------------------
+        mySubscription.expireDate = periodEnd;
+        mySubscription.paymentId = paymentDoc._id;
+        mySubscription.status = "active";
+        mySubscription.renewalCount += 1;
+        mySubscription.lastPaymentAmount = finalAmount;
 
-        paymentDoc.subscriptionId = mySub._id;
+        await mySubscription.save();
+
+        paymentDoc.subscriptionId = mySubscription._id;
         await paymentDoc.save();
+
+        console.log("Subscription renewed successfully.");
       } else {
-        // 🆕 First Time Subscription
-        mySub = await MySubscription.create({
+        // -------------------------
+        // 🆕 FIRST TIME SUBSCRIPTION
+        // -------------------------
+        const cancelDeadline = new Date();
+        cancelDeadline.setMonth(cancelDeadline.getMonth() + 1);
+
+        mySubscription = await MySubscription.create({
           employerId: user._id,
           type: subscriptionType,
           buyTime: periodStart,
@@ -223,63 +231,387 @@ const handleWebhook = async (event: Stripe.Event) => {
           paymentId: paymentDoc._id,
           status: "active",
           autoRenewal: true,
-          stripeSubscriptionId: stripeSub.id,
+          stripeSubscriptionId: stripeSubscription.id,
           yearEndDate: new Date(
             new Date().setFullYear(new Date().getFullYear() + 1)
           ),
+          cancelDeadline,
+          lastPaymentAmount: finalAmount,
+          promotionCode: promoCodeUsed,
+          stripeHostedInvoiceUrl: invoice.hosted_invoice_url,
         });
 
-        user.mySubscriptionsId = mySub._id;
+        user.mySubscriptionsId = mySubscription._id;
         await user.save();
 
-        paymentDoc.subscriptionId = mySub._id;
+        paymentDoc.subscriptionId = mySubscription._id;
         await paymentDoc.save();
+
+        console.log("New subscription created successfully.");
       }
 
-      console.log("Payment processed successfully");
+      console.log("Invoice processed successfully:", invoice.id);
       return;
     }
 
-    // =========================================================
-    // 2️⃣ PAYMENT FAILED
-    // =========================================================
-    if (event.type === "invoice.payment_failed") {
-      const invoice = event.data.object as Stripe.Invoice;
-
-      console.log("==== invoice.payment_failed =>>>>> ", invoice)
-
-      await MySubscription.findOneAndUpdate(
-        { stripeSubscriptionId: invoice.subscription },
-        { status: "expired" }
-      );
-
-      console.log("Subscription marked as expired (payment failed)");
-      return;
-    }
-
-    // =========================================================
-    // 3️⃣ SUBSCRIPTION CANCELLED
-    // =========================================================
+    /**
+     * ============================================================
+     * 4️⃣ HANDLE SUBSCRIPTION CANCELLATION
+     * ============================================================
+     */
     if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
 
       await MySubscription.findOneAndUpdate(
         { stripeSubscriptionId: subscription.id },
-        {
-          status: "cancelled",
-          autoRenewal: false,
-        }
+        { status: "cancelled", autoRenewal: false }
       );
 
-      console.log("Subscription cancelled successfully");
+      console.log("Subscription cancelled:", subscription.id);
       return;
     }
 
-    console.log("Unhandled event:", event.type);
+    /**
+     * ============================================================
+     * 5️⃣ HANDLE PAYMENT FAILURE
+     * ============================================================
+     */
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+
+      console.log("Payment failed for invoice:", invoice);
+
+        const stripeSubId = invoice.parent?.subscription_details?.subscription;
+ 
+        console.log("stripeSubId", stripeSubId);
+        if (!stripeSubId) {
+          console.log("No subscription found for invoice:", invoice.id);
+          return;
+        }
+
+       const stripeSub = await stripe.subscriptions.retrieve(stripeSubId);
+
+       console.log("stripeSub", stripeSub);
+
+
+
+      await MySubscription.findOneAndUpdate(
+        { stripeSubscriptionId: stripeSubId},
+        {
+          status: stripeSub.status, // past_due / unpaid / canceled
+          lastPaymentAttemptFailed: true,
+        }
+      );
+
+      console.log("Payment failed for invoice:", invoice.id);
+      return;
+    }
+
+    console.log("Unhandled event type:", event.type);
   } catch (error) {
-    console.error("Webhook processing error:", error);
+    console.error("❌ Webhook processing error:", error);
   }
 };
+
+
+// ================= Cancel Subscription Manually =================
+const cancelSubscription = async (subscriptionId: string) => {
+  const mySub = await MySubscription.findById(subscriptionId);
+  if (!mySub) throw new Error("Subscription not found");
+
+  const now = new Date();
+  if (now > mySub.cancelDeadline) throw new Error("Cannot cancel after cancel deadline");
+
+  await stripe.subscriptions.del(mySub.stripeSubscriptionId!);
+
+  mySub.status = "cancelled";
+  mySub.autoRenewal = false;
+  await mySub.save();
+
+  return "Subscription cancelled successfully";
+};
+
+
+
+
+// import Stripe from "stripe";
+// import { User } from "../user/user.model";
+// import { MySubscription } from "../mySubscription/mySubscription.model";
+// import { Payment } from "./payment.model";
+
+// const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+//   apiVersion: "2025-09-30.clover",
+// });
+
+// const stripePriceIds: Record<
+//   "Bronze" | "Platinum" | "Diamond",
+//   string
+// > = {
+//   Bronze: process.env.STRIPE_BRONZE_PRICE_ID!,
+//   Platinum: process.env.STRIPE_PLATINUM_PRICE_ID!,
+//   Diamond: process.env.STRIPE_DIAMOND_PRICE_ID!,
+// };
+
+// export const createCheckoutSession = async (
+//   userId: string,
+//   subscriptionType: "Bronze" | "Platinum" | "Diamond",
+//   promotionCode?: string
+// ): Promise<string> => {
+//   // ================================
+//   // 1️⃣ Find User
+//   // ================================
+//   const user = await User.findById(userId);
+//   if (!user) {
+//     throw new Error("User not found");
+//   }
+
+//   // ================================
+//   // 2️⃣ Prevent Multiple Active Subscriptions
+//   // ================================
+//   const activeSubscription = await MySubscription.findOne({
+//     employerId: user._id,
+//     status: "active",
+//   });
+
+//   if (activeSubscription) {
+//     throw new Error("User already has an active subscription");
+//   }
+
+//   // ================================
+//   // 3️⃣ Create / Reuse Stripe Customer
+//   // ================================
+//   let customerId = user.stipeCustomerId;
+
+//   if (!customerId) {
+//     const customer = await stripe.customers.create({
+//       email: user.email,
+//       metadata: {
+//         userId: user._id.toString(),
+//       },
+//     });
+
+//     customerId = customer.id;
+//     user.stipeCustomerId = customerId;
+//     await user.save();
+//   }
+
+//   // ================================
+//   // 4️⃣ Validate Price
+//   // ================================
+//   const priceId = stripePriceIds[subscriptionType];
+//   if (!priceId) {
+//     throw new Error("Invalid subscription type");
+//   }
+
+//   // ================================
+//   // 5️⃣ Create Checkout Session
+//   // ================================
+//   const session = await stripe.checkout.sessions.create({
+//     mode: "subscription",
+//     customer: customerId,
+//     payment_method_types: ["card"],
+//     allow_promotion_codes: true,
+//     line_items: [
+//       {
+//         price: priceId,
+//         quantity: 1,
+//       },
+//     ],
+
+//     success_url: `${process.env.FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+//     cancel_url: `${process.env.FRONTEND_URL}/cancel`,
+
+//     metadata: {
+//       userId: user._id.toString(),
+//       subscriptionType,
+//     },
+
+//     subscription_data: {
+//       metadata: {
+//         userId: user._id.toString(),
+//         subscriptionType,
+//       },
+//     },
+//   });
+
+//   if (!session.url) {
+//     throw new Error("Failed to create Stripe checkout session");
+//   }
+
+//   return session.url;
+// };
+
+
+
+// const handleWebhook = async (event: Stripe.Event) => {
+//   console.log("Stripe Event:", event.type);
+
+//   try {
+//     // =========================================================
+//     // 1️⃣ PAYMENT SUCCESS (First + Renewal)
+//     // =========================================================
+//     if (event.type === "invoice.payment_succeeded") {
+//       const invoice = event.data.object as Stripe.Invoice;
+
+//       console.log("==== invoice.payment_succeeded =>>>>> ", invoice)
+
+//       // 🔹 Safely get subscription ID
+//       const subscriptionId =
+//         ((invoice as any).subscription as string) ||
+//         (invoice.parent?.subscription_details?.subscription as string);
+
+//       if (!subscriptionId) {
+//         console.log("No subscription ID found for invoice:", invoice.id);
+//         return;
+//       }
+
+
+//       // 🔥 Prevent duplicate webhook retry
+//       const existingPayment = await Payment.findOne({
+//         paymentId: invoice.id,
+//       });
+
+//       if (existingPayment) {
+//         console.log("Duplicate webhook ignored");
+//         return;
+//       }
+
+//       // Get Stripe Subscription
+//       const stripeSub = await stripe.subscriptions.retrieve(
+//         subscriptionId as string
+//       );
+
+//       console.log("==== stripeSub =>>>>> ", stripeSub)
+
+//       const user = await User.findOne({
+//         stipeCustomerId: stripeSub.customer,
+//       });
+
+//       if (!user) return;
+
+//       const line = invoice.lines.data[0];
+
+//       const periodStart = new Date(line.period.start * 1000);
+//       const periodEnd = new Date(line.period.end * 1000);
+
+//       const discount =
+//         invoice.total_discount_amounts?.length
+//           ? invoice.total_discount_amounts[0].amount / 100
+//           : 0;
+
+//       const finalAmount = invoice.amount_paid / 100;
+
+//       console.log("subscriptionType items data =>>>>> ", stripeSub.items.data)
+//       const subscriptionType =
+//         stripeSub.items.data[0].price.nickname  || stripeSub.metadata.subscriptionType  as
+//           | "Bronze"
+//           | "Platinum"
+//           | "Diamond";
+
+//       // =====================================================
+//       // Create Payment
+//       // =====================================================
+//       const paymentDoc = await Payment.create({
+//         employerId: user._id,
+//         subscriptionType,
+//         durationInMonths: 1,
+//         amount: finalAmount + discount,
+//         discount,
+//         finalAmount,
+//         paymentId: invoice.id,
+//         paymentMethod: "card",
+//         buyTime: periodStart,
+//         expireDate: periodEnd,
+//         status: "success",
+//         stripeInvoiceId: invoice.id,
+//         isRenewal: invoice.billing_reason === "subscription_cycle",
+//       });
+
+//       // =====================================================
+//       // Update or Create Subscription
+//       // =====================================================
+//       let mySub = await MySubscription.findOne({
+//         stripeSubscriptionId: stripeSub.id,
+//       });
+
+//       if (mySub) {
+//         // 🔁 Renewal
+//         mySub.expireDate = periodEnd;
+//         mySub.paymentId = paymentDoc._id;
+//         mySub.status = "active";
+//         mySub.renewalCount += 1;
+//         await mySub.save();
+
+//         paymentDoc.subscriptionId = mySub._id;
+//         await paymentDoc.save();
+//       } else {
+//         // 🆕 First Time Subscription
+//         mySub = await MySubscription.create({
+//           employerId: user._id,
+//           type: subscriptionType,
+//           buyTime: periodStart,
+//           howManyMonths: 12,
+//           expireDate: periodEnd,
+//           paymentId: paymentDoc._id,
+//           status: "active",
+//           autoRenewal: true,
+//           stripeSubscriptionId: stripeSub.id,
+//           yearEndDate: new Date(
+//             new Date().setFullYear(new Date().getFullYear() + 1)
+//           ),
+//         });
+
+//         user.mySubscriptionsId = mySub._id;
+//         await user.save();
+
+//         paymentDoc.subscriptionId = mySub._id;
+//         await paymentDoc.save();
+//       }
+
+//       console.log("Payment processed successfully");
+//       return;
+//     }
+
+//     // =========================================================
+//     // 2️⃣ PAYMENT FAILED
+//     // =========================================================
+//     if (event.type === "invoice.payment_failed") {
+//       const invoice = event.data.object as Stripe.Invoice;
+
+//       console.log("==== invoice.payment_failed =>>>>> ", invoice)
+
+//       await MySubscription.findOneAndUpdate(
+//         { stripeSubscriptionId: invoice.subscription },
+//         { status: "expired" }
+//       );
+
+//       console.log("Subscription marked as expired (payment failed)");
+//       return;
+//     }
+
+//     // =========================================================
+//     // 3️⃣ SUBSCRIPTION CANCELLED
+//     // =========================================================
+//     if (event.type === "customer.subscription.deleted") {
+//       const subscription = event.data.object as Stripe.Subscription;
+
+//       await MySubscription.findOneAndUpdate(
+//         { stripeSubscriptionId: subscription.id },
+//         {
+//           status: "cancelled",
+//           autoRenewal: false,
+//         }
+//       );
+
+//       console.log("Subscription cancelled successfully");
+//       return;
+//     }
+
+//     console.log("Unhandled event:", event.type);
+//   } catch (error) {
+//     console.error("Webhook processing error:", error);
+//   }
+// };
 
 
 // morning work feature
@@ -471,33 +803,33 @@ const handleWebhook = async (event: Stripe.Event) => {
 //   }
 // };
 
-const cancelSubscription = async (subscriptionId: string): Promise<string> => {
+// const cancelSubscription = async (subscriptionId: string): Promise<string> => {
 
-  const mySub = await MySubscription.findById(subscriptionId)
+//   const mySub = await MySubscription.findById(subscriptionId)
 
-  if (!mySub) throw new Error('Subscription not found')
+//   if (!mySub) throw new Error('Subscription not found')
 
-  const now = new Date()
+//   const now = new Date()
 
-  const diffDays = Math.floor(
-    (now.getTime() - mySub.buyTime.getTime()) / (1000 * 60 * 60 * 24)
-  )
+//   const diffDays = Math.floor(
+//     (now.getTime() - mySub.buyTime.getTime()) / (1000 * 60 * 60 * 24)
+//   )
 
-  if (diffDays <= 3) {
-    await stripe.subscriptions.del(mySub.stripeSubscriptionId!)
-    mySub.status = 'cancelled'
-    mySub.autoRenewal = false
-    await mySub.save()
-    return 'Cancelled within 3 days. Only first month charged.'
-  } else {
-    await stripe.subscriptions.update(mySub.stripeSubscriptionId!, {
-      cancel_at_period_end: true,
-    })
-    mySub.autoRenewal = false
-    await mySub.save()
-    return 'Subscription will cancel at the end of the current billing cycle.'
-  }
-}
+//   if (diffDays <= 3) {
+//     await stripe.subscriptions.del(mySub.stripeSubscriptionId!)
+//     mySub.status = 'cancelled'
+//     mySub.autoRenewal = false
+//     await mySub.save()
+//     return 'Cancelled within 3 days. Only first month charged.'
+//   } else {
+//     await stripe.subscriptions.update(mySub.stripeSubscriptionId!, {
+//       cancel_at_period_end: true,
+//     })
+//     mySub.autoRenewal = false
+//     await mySub.save()
+//     return 'Subscription will cancel at the end of the current billing cycle.'
+//   }
+// }
 
 export const paymentService = {
   createCheckoutSession,
